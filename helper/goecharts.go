@@ -3,9 +3,11 @@ package helper
 import (
 	"log"
 	"math"
+	"math/rand"
 	"os"
 
 	"github.com/chenjiandongx/go-echarts/charts"
+	"github.com/chenjiandongx/go-echarts/common"
 )
 
 var rangeColor = []string{
@@ -77,4 +79,67 @@ func Chart2() {
 		log.Println(err)
 	}
 	surface3d.Render(f)
+}
+
+// Chart3 comment
+func Chart3() {
+	pie := charts.NewPie()
+	pie.SetGlobalOptions(
+		charts.TitleOpts{Title: "商城对比"},
+		charts.ToolboxOpts{Show: true},
+		charts.InitOpts{Width: "600px", Height: "400px", PageTitle: "Awesome", Theme: common.ThemeType.Macarons},
+	)
+	pie.Add("Data", genKvData(),
+		charts.LabelTextOpts{Show: true, Formatter: "{b}: {c}"},
+		charts.PieOpts{Radius: []string{"30%", "75%"}, RoseType: "area"},
+	)
+	f, err := os.Create("chart3.html")
+	if err != nil {
+		log.Println(err)
+	}
+	pie.Render(f)
+}
+
+func genKvData() map[string]interface{} {
+	kvData := make(map[string]interface{})
+	nameItems := []string{"京东", "国美", "苏宁", "天猫"}
+	cnt := len(nameItems)
+	for i := 0; i < cnt; i++ {
+		kvData[nameItems[i]] = rand.Intn(10000)
+	}
+	return kvData
+}
+
+// Chart4 comment
+func Chart4() {
+	var wcData = map[string]interface{}{
+		"全自动":    10000,
+		"甩干功能":   6181,
+		"人工智能系统": 4386,
+		"儿童锁":    4055,
+		"滚筒":     2467,
+		"烘干":     2244,
+		"温水":     1898,
+		"洗涤":     1484,
+		"洗衣液":    1689,
+		"半自动":    1112,
+		"高度":     985,
+		"内筒":     847,
+		"悬浮":     582,
+		"独立悬挂":   555,
+		"经济":     550,
+		"性价比":    462,
+		"销量冠军":   366,
+		"低噪音":    282,
+		"经典灰色":   273,
+		"排水孔":    265,
+	}
+	wc := charts.NewWordCloud()
+	wc.SetGlobalOptions(charts.TitleOpts{Title: "WordCloud-示例图"})
+	wc.Add("wordcloud", wcData, charts.WordCLoudOpts{SizeRange: []float32{14, 80}})
+	f, err := os.Create("chart4.html")
+	if err != nil {
+		log.Println(err)
+	}
+	wc.Render(f)
 }

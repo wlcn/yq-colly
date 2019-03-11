@@ -9,5 +9,13 @@ func TestChart1(t *testing.T) {
 }
 
 func TestChart2(t *testing.T) {
-	Chart1()
+	Chart2()
+}
+
+func TestChart3(t *testing.T) {
+	Chart3()
+}
+
+func TestChart4(t *testing.T) {
+	Chart4()
 }
