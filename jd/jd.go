@@ -23,9 +23,9 @@ func main() {
 	})
 
 	c.Limit(&colly.LimitRule{
-		DomainGlob:  "*jd.com*",
+		DomainGlob:  "*search.jd.com*",
 		Parallelism: 2,
-		RandomDelay: 20 * time.Second,
+		RandomDelay: 10 * time.Second,
 	})
 
 	c.OnHTML(`a[href]`, func(e *colly.HTMLElement) {
@@ -71,9 +71,10 @@ func main() {
 	for _, good := range goods {
 		key := url.QueryEscape(good)
 		// 搜索产品按照新品排序
-		for p := 1; p < 100; p++ {
+		for p := 1; p <= 100; p++ {
 			s := 61 + 60*(p-2)
 			log.Println(fmt.Sprintf("current page is %v", p))
+			c.Visit(fmt.Sprintf("https://search.jd.com/Search?callback=jQuery1519158&area=1&enc=utf-8&keyword=%v&adType=7&page=%v&ad_ids=576%3A1&ad_type=4&_=1552566044492", key, strconv.Itoa(p*2-1)))
 			c.Visit(fmt.Sprintf("https://search.jd.com/Search?keyword=%v&enc=utf-8&qrst=1&rt=1&stop=1&vt=2&wq=%v&psort=5&stock=1&page=%s&s=%s&click=0", key, key, strconv.Itoa(p*2-1), strconv.Itoa(s)))
 		}
 	}
