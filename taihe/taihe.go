@@ -3,19 +3,26 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gocolly/colly"
 )
 
-const urlTemplate = "http://music.taihe.com/data/user/getsongs?start=%d&size=%d&ting_uid=%s&.r=%s"
+const urlTemplate = "http://music.taihe.com/data/user/getsongs?start=%d&size=%d&ting_uid=%s&.r=%.10f"
 const lrcURLTemplate = "http://music.taihe.com/data/song/lrc?lrc_link=%s"
 
 var regArtist, _ = regexp.Compile(`^/artist/[\d]+$`)
 var regSong, _ = regexp.Compile(`^/song/[\d]+$`)
+
+func init() {
+	rand.Seed(int64(time.Now().Nanosecond()))
+}
 
 func main() {
 	// Instantiate default collector
@@ -49,21 +56,36 @@ func main() {
 		if regSong.MatchString(link) {
 			fmt.Printf("Song found: %q -> %s\n", strings.TrimSpace(strings.Replace(e.Text, "\n", "", -1)), link)
 			// 歌曲列表
-			songCollector.Visit(e.Request.AbsoluteURL(link))
+			// songCollector.Visit(e.Request.AbsoluteURL(link))
 		}
 	})
 
 	// 歌手对应的歌曲分页逻辑
-	artistCollector.OnHTML("div.page-cont", func(e *colly.HTMLElement) {
+	artistCollector.OnHTML("div.song-list-box div.page-cont", func(e *colly.HTMLElement) {
+		// fmt.Println(e.DOM.Html())
 		current := e.ChildText("span.page-navigator-current")
 		next := e.ChildAttr("a.page-navigator-next", "href")
-		fmt.Printf("Page song found: %q -> %s\n", current, next)
-		// 歌曲列表 TODO
-		// Page song found: "1" -> /data/style/getsongs?title=&start=15&size=15&third_type=
-		// Page song found: "1" -> /data/style/getalbums?title=&start=12&size=12&third_type=
-		// Page song found: "1" -> /data/artist/getmvlist?start=9&size=9&third_type=
-		// Page song found: "" ->
-		// c.Visit(e.Request.AbsoluteURL(link))
+		songTotal := e.DOM.Find("a.page-navigator-number").Last().Text()
+		// albumsTotal := e.DOM.Find("a[class=page-navigator-number]").Last().Text()
+		// mvTotal := e.DOM.Find("a[class=page-navigator-number]").Last().Text()
+		next = e.Request.AbsoluteURL(next)
+
+		// 解析ting_id
+		p := e.Request.URL.Path
+		tingID := p[strings.LastIndex(p, "/")+1:]
+		u, _ := url.Parse(next)
+		m, _ := url.ParseQuery(u.RawQuery)
+		fmt.Printf("tingid is%v, start is %v, size is %v, songTotal is %v,", tingID, m["start"][0], m["size"][0], songTotal)
+
+		sizeInt, _ := strconv.Atoi(m["size"][0])
+		currInt, _ := strconv.Atoi(current)
+		songTotalInt, _ := strconv.Atoi(songTotal)
+		for i := currInt; i < songTotalInt; i++ {
+			startInt := i * sizeInt
+			link := fmt.Sprintf(urlTemplate, startInt, sizeInt, tingID, rand.Float64())
+			fmt.Println("Page song found ", link)
+			artistCollector.Visit(e.Request.AbsoluteURL(link))
+		}
 	})
 
 	// On every ul element which has top_subnav__link class call callback
@@ -88,7 +110,7 @@ func main() {
 		fmt.Println("Request URL:", r.Request.URL, "failed with response:", r, "\n Error:", err)
 	})
 	// Start scraping on http://music.taihe.com/artist
-	c.Visit("http://music.taihe.com/artist/9103")
+	c.Visit("http://music.taihe.com/artist/9809")
 
 	outfile, _ := os.Create("taihe.json")
 	enc := json.NewEncoder(outfile)
