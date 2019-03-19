@@ -23,7 +23,8 @@ func main() {
 		// Visit only domains: music.taihe.com
 		colly.AllowedDomains("music.taihe.com"),
 	)
-	detailCollector := c.Clone()
+	artistCollector := c.Clone()
+	songCollector := c.Clone()
 	items := make([]string, 0, 10)
 	// Limit the number of threads started by colly to two
 	// when visiting links which domains' matches "*httpbin.*" glob
@@ -38,29 +39,38 @@ func main() {
 		if regArtist.MatchString(link) {
 			fmt.Printf("Artist found: %q -> %s\n", strings.TrimSpace(strings.Replace(e.Text, "\n", "", -1)), link)
 			// 歌手列表
-			c.Visit(e.Request.AbsoluteURL(link))
-		} else if regSong.MatchString(link) {
-			fmt.Printf("Song found: %q -> %s\n", strings.TrimSpace(strings.Replace(e.Text, "\n", "", -1)), link)
-			// 歌曲列表
-			detailCollector.Visit(e.Request.AbsoluteURL(link))
+			artistCollector.Visit(e.Request.AbsoluteURL(link))
 		}
 	})
 
-	// 歌曲分页逻辑
-	c.OnHTML("div.page-cont", func(e *colly.HTMLElement) {
+	// On every a element which has href attribute call callback
+	artistCollector.OnHTML("a[href]", func(e *colly.HTMLElement) {
+		link := e.Attr("href")
+		if regSong.MatchString(link) {
+			fmt.Printf("Song found: %q -> %s\n", strings.TrimSpace(strings.Replace(e.Text, "\n", "", -1)), link)
+			// 歌曲列表
+			songCollector.Visit(e.Request.AbsoluteURL(link))
+		}
+	})
+
+	// 歌手对应的歌曲分页逻辑
+	artistCollector.OnHTML("div.page-cont", func(e *colly.HTMLElement) {
 		current := e.ChildText("span.page-navigator-current")
 		next := e.ChildAttr("a.page-navigator-next", "href")
 		fmt.Printf("Page song found: %q -> %s\n", current, next)
 		// 歌曲列表 TODO
+		// Page song found: "1" -> /data/style/getsongs?title=&start=15&size=15&third_type=
+		// Page song found: "1" -> /data/style/getalbums?title=&start=12&size=12&third_type=
+		// Page song found: "1" -> /data/artist/getmvlist?start=9&size=9&third_type=
+		// Page song found: "" ->
 		// c.Visit(e.Request.AbsoluteURL(link))
 	})
 
 	// On every ul element which has top_subnav__link class call callback
-	detailCollector.OnHTML("div.song-info-box", func(e *colly.HTMLElement) {
+	songCollector.OnHTML("div.song-info-box", func(e *colly.HTMLElement) {
 		songName := e.ChildText("span.name")
 		artist := e.ChildText("span.artist a")
 		fmt.Printf("Song detail found: %v, %q\n", songName, artist)
-		
 	})
 
 	// Before making a request print "Visiting ..."
@@ -78,7 +88,7 @@ func main() {
 		fmt.Println("Request URL:", r.Request.URL, "failed with response:", r, "\n Error:", err)
 	})
 	// Start scraping on http://music.taihe.com/artist
-	c.Visit("http://music.taihe.com/artist")
+	c.Visit("http://music.taihe.com/artist/9103")
 
 	outfile, _ := os.Create("taihe.json")
 	enc := json.NewEncoder(outfile)
