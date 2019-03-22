@@ -267,7 +267,7 @@ func main() {
 		log.Println("Request URL:", r.Request.URL, "failed with response:", r, "\n Error:", err)
 	})
 	// Start scraping on http://music.taihe.com/artist
-	c.Visit("http://music.taihe.com/artist/9809")
+	c.Visit("http://music.taihe.com/artist")
 
 	outfileDone, _ := os.Create("taihe_done.json")
 	encDone := json.NewEncoder(outfileDone)
