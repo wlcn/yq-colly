@@ -17,7 +17,6 @@ import (
 )
 
 const urlTemplate = "http://music.taihe.com/data/user/getsongs?start=%d&size=%d&ting_uid=%s&.r=%.10f"
-const lrcURLTemplate = "http://music.taihe.com/data/song/lrc?lrc_link=%s"
 const baseURL = "http://music.taihe.com%v"
 
 var regArtist, _ = regexp.Compile(`^/artist/[\d]+$`)
@@ -25,6 +24,22 @@ var regSong, _ = regexp.Compile(`^/song/[\d]+$`)
 
 func init() {
 	rand.Seed(int64(time.Now().Nanosecond()))
+}
+
+// SongDetail struct
+type SongDetail struct {
+	ArtistID string `json:"artistId"`
+	Artist   string `json:"artist"`
+	AlbumID  string `json:"albumId"`
+	Album    string `json:"album"`
+	SongID   string `json:"songId"`
+	SongName string `json:"songName"`
+	SongLink string `json:"songLink"`
+	LrcLink  string `json:"lrcLink"`
+	Publish  string `json:"publish"`
+	Company  string `json:"company"`
+	MVID     string `json:"mvId"`
+	SongImg  string `json:"songImg"`
 }
 
 // PageData struct
@@ -52,7 +67,12 @@ func main() {
 	artistCollector := c.Clone()
 	artistPageCollector := c.Clone()
 	songCollector := c.Clone()
-	items := make([]string, 0, 10)
+	items := make([]SongDetail, 0, 10)
+
+	outfile, _ := os.Create("taihe.json")
+	enc := json.NewEncoder(outfile)
+	enc.SetIndent("", "  ")
+
 	// Limit the number of threads started by colly to two
 	// when visiting links which domains' matches "*httpbin.*" glob
 	c.Limit(&colly.LimitRule{
@@ -74,7 +94,7 @@ func main() {
 	artistCollector.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		link := e.Attr("href")
 		if regSong.MatchString(link) {
-			fmt.Printf("Song found: %q -> %s\n", strings.TrimSpace(strings.Replace(e.Text, "\n", "", -1)), link)
+			// fmt.Printf("Song found: %q -> %s\n", strings.TrimSpace(strings.Replace(e.Text, "\n", "", -1)), link)
 			// 歌曲列表
 			songCollector.Visit(e.Request.AbsoluteURL(link))
 		}
@@ -126,26 +146,36 @@ func main() {
 			// For each item found, get the band and title
 			link, _ := s.Attr("href")
 			if regSong.MatchString(link) {
-				title, _ := s.Attr("title")
-				fmt.Printf("Song found: %s -> %s\n", link, title)
+				// title, _ := s.Attr("title")
+				// fmt.Printf("Song found: %s -> %s\n", link, title)
 				songCollector.Visit(fmt.Sprintf(baseURL, link))
 			}
 		})
 	})
 
 	// On every ul element which has top_subnav__link class call callback
-	songCollector.OnHTML("div[id=lyricCont]", func(e *colly.HTMLElement) {
-		lrclink := e.Attr("data-lrclink")
-		fmt.Printf("Song lrclink found: %v\n", lrclink)
-	})
-	// On every ul element which has top_subnav__link class call callback
-	songCollector.OnHTML("div.song-info-box", func(e *colly.HTMLElement) {
-		songName := e.ChildText("span.name")
-		artist := e.ChildText("span.artist a")
-		album := e.ChildText("p.album a")
-		publish := e.ChildText("p.publish")
-		company := e.ChildText("p.company")
-		fmt.Printf("Song detail found: %v, %v, %v, %v, %v\n", songName, artist, album, publish, company)
+	songCollector.OnHTML("div.songn-info-box", func(e *colly.HTMLElement) {
+		songInfo := e.DOM.Find("div.song-info-box")
+		artistID, _ := songInfo.Find("span.artist a").Attr("href")
+		albumID, _ := songInfo.Find("p.album a").Attr("href")
+		songDetail := SongDetail{
+			ArtistID: e.Request.AbsoluteURL(artistID),
+			Artist:   songInfo.Find("span.artist a").Text(),
+			AlbumID:  e.Request.AbsoluteURL(albumID),
+			Album:    songInfo.Find("p.album a").Text(),
+			SongID:   e.Attr("data-songid"),
+			SongName: songInfo.Find("span.name").Text(),
+			SongLink: e.Request.URL.String(),
+			LrcLink:  e.ChildAttr("div[id=lyricCont]", "data-lrclink"),
+			Publish:  songInfo.Find("p.publish").Text(),
+			Company:  songInfo.Find("p.company").Text(),
+			MVID:     e.ChildAttr("div.song-img", "data-mvid"),
+			SongImg:  e.ChildAttr("img.music-song-ing", "src"),
+		}
+		// Dump json to the standard output
+		enc.Encode(songDetail)
+		items = append(items, songDetail)
+		// fmt.Printf("Song Detail found: %+v\n", songDetail)
 	})
 
 	// Before making a request print "Visiting ..."
@@ -165,9 +195,9 @@ func main() {
 	// Start scraping on http://music.taihe.com/artist
 	c.Visit("http://music.taihe.com/artist/9809")
 
-	outfile, _ := os.Create("taihe.json")
-	enc := json.NewEncoder(outfile)
-	enc.SetIndent("", "  ")
+	outfileDone, _ := os.Create("taihe_done.json")
+	encDone := json.NewEncoder(outfileDone)
+	encDone.SetIndent("", "  ")
 	// Dump json to the standard output
-	enc.Encode(items)
+	encDone.Encode(items)
 }
