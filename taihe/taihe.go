@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/url"
@@ -22,7 +23,7 @@ const baseURL = "http://music.taihe.com%v"
 const urlTing = "http://musicapi.taihe.com/v1/restserver/ting?method=baidu.ting.song.playAAC&format=jsonp&callback=jQuery17203475326803441232_%v&songid=%v&from=web&_=%v"
 
 // StoreDir 存储地址，目前歌曲，歌词，以及图片都存在一个目录，以歌曲[songId_songName_artist]命名
-const StoreDir = "/tmp/taihe/"
+const StoreDir = "/tmp/music/taihe/"
 
 var regArtist, _ = regexp.Compile(`^/artist/[\d]+$`)
 var regSong, _ = regexp.Compile(`^/song/[\d]+$`)
@@ -67,7 +68,17 @@ type PageData struct {
 type SongData struct {
 	ErrorCode int `json:"error_code"`
 	SongInfo  struct {
-		Lrclink string `json:"lrclink"`
+		Lrclink    string `json:"lrclink"`
+		Artist     string `json:"artist"`
+		SongID     string `json:"song_id"`
+		Title      string `json:"title"`
+		Language   string `json:"language"`
+		Country    string `json:"country"`
+		Author     string `json:"author"`
+		PicRadio   string `json:"pic_radio"`
+		PicPremium string `json:"pic_premium"`
+		PicSmall   string `json:"pic_small"`
+		AlbumTitle string `json:"album_title"`
 	} `json:"songinfo"`
 	Bitrate struct {
 		FileLink      string `json:"file_link"`
@@ -104,7 +115,7 @@ func main() {
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*music.taihe.com*",
 		Parallelism: 2,
-		RandomDelay: 5 * time.Second,
+		RandomDelay: 20 * time.Second,
 	})
 	// On every a element which has href attribute call callback
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
@@ -236,10 +247,7 @@ func main() {
 		// 截取字符串
 		jsonStr := bodyStr[strings.Index(bodyStr, "(")+1 : strings.LastIndex(bodyStr, ")")]
 		// 保存json数据
-		outfile, _ := os.Create(StoreDir + songInfo + ".json")
-		enc := json.NewEncoder(outfile)
-		enc.SetIndent("", "  ")
-		enc.Encode(jsonStr)
+		ioutil.WriteFile(StoreDir+songInfo+".json", []byte(jsonStr), os.ModePerm)
 		// log.Println(jsonStr)
 		// 解析json
 		var songData SongData
