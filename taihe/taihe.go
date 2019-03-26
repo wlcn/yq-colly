@@ -152,16 +152,20 @@ func main() {
 		tingID := p[strings.LastIndex(p, "/")+1:]
 		u, _ := url.Parse(next)
 		m, _ := url.ParseQuery(u.RawQuery)
-		log.Printf("tingid is %v, start is %v, size is %v, songTotal is %v,", tingID, m["start"][0], m["size"][0], songTotal)
 
-		sizeInt, _ := strconv.Atoi(m["size"][0])
-		currInt, _ := strconv.Atoi(current)
-		songTotalInt, _ := strconv.Atoi(songTotal)
-		for i := currInt; i < songTotalInt; i++ {
-			startInt := i * sizeInt
-			link := fmt.Sprintf(urlTemplate, startInt, sizeInt, tingID, rand.Float64())
-			log.Println("Page song found ", link)
-			artistPageCollector.Visit(e.Request.AbsoluteURL(link))
+		start, okStart := m["start"]
+		size, okSize := m["size"]
+		if okStart && okSize && len(start) > 0 && len(size) > 0 {
+			log.Printf("tingid is %v, start is %v, size is %v, songTotal is %v,", tingID, m["start"][0], m["size"][0], songTotal)
+			sizeInt, _ := strconv.Atoi(m["size"][0])
+			currInt, _ := strconv.Atoi(current)
+			songTotalInt, _ := strconv.Atoi(songTotal)
+			for i := currInt; i < songTotalInt; i++ {
+				startInt := i * sizeInt
+				link := fmt.Sprintf(urlTemplate, startInt, sizeInt, tingID, rand.Float64())
+				log.Println("Page song found ", link)
+				artistPageCollector.Visit(e.Request.AbsoluteURL(link))
+			}
 		}
 	})
 
