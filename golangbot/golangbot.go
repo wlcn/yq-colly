@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gocolly/colly"
 )
+
+var token string
 
 // Article should only be concerned with database schema, more strict checking should be put in validator.
 type Article struct {
@@ -30,7 +33,7 @@ func main() {
 	ch := make(chan Article, 10)
 	var wg sync.WaitGroup
 	go save(ch, &wg)
-	
+
 	c.OnHTML("div[id=articles]", func(e *colly.HTMLElement) {
 		e.ForEach("article", func(_ int, a *colly.HTMLElement) {
 			articleLink := a.ChildAttr("a.article-link", "href")
@@ -79,28 +82,60 @@ func main() {
 func save(ch chan Article, wg *sync.WaitGroup) {
 	for article := range ch {
 		wg.Add(1)
-		url := "http://localhost:8080/api/v1/article"
-		// 保存数据接口
-		token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoid2wiLCJwYXNzd29yZCI6IiQyYSQxMCRhRDJ0dmd2U09NYTRWMmxWdmh1LlRlcHlTOUhCZk9WOS5mdFdkbTlBWTVyUE5QczhKS1E5dSIsImV4cCI6MTU1Mzg1MTMxNiwiaXNzIjoieXEtc3RhcnRlci1pc3N1ZXIifQ._BR6lLyDBUt9PQwfc1LyfBVHKW8CyEdDzGWIKXIexa8"
-		var jsonStr, err = json.Marshal(article)
-		if err != nil {
-			fmt.Printf("json marshal err %v", err)
-			return
-		}
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-		req.Header.Set("token", token)
-		req.Header.Set("Content-Type", "application/json")
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Printf("err is %+v \n", err)
-			return
-		}
-		defer resp.Body.Close()
-		fmt.Printf("title is %v response Status: %v \n", article.Title, resp.Status)
-		// fmt.Println("response Headers:", resp.Header)
-		// body, _ := ioutil.ReadAll(resp.Body)
-		// fmt.Println("response Body:", string(body))
-		wg.Done()
+		go send(article, wg)
 	}
+}
+
+func send(article Article, wg *sync.WaitGroup) {
+	url := "http://localhost:8080/api/v1/article"
+	// 保存数据接口
+	jsonStr, err := json.Marshal(article)
+	if err != nil {
+		fmt.Printf("json marshal err %v", err)
+		return
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
+	req.Header.Set("token", token)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("err is %+v \n", err)
+		return
+	}
+	defer resp.Body.Close()
+	fmt.Printf("title is %v response Status: %v \n", article.Title, resp.Status)
+	wg.Done()
+}
+
+func init() {
+	// 获取token
+	url := "http://localhost:8080/auth/login"
+	data := map[string]string{
+		"Name":     "yq",
+		"Password": "1",
+	}
+	jsonStr, err := json.Marshal(data)
+	if err != nil {
+		fmt.Printf("json error %+v", err)
+		return
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonStr))
+	if err != nil {
+		fmt.Printf("err is %+v \n", err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("read err %+v", err)
+		return
+	}
+	response := map[string]interface{}{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Printf("json err %+v", err)
+		return
+	}
+	token = response["token"].(string)
 }
