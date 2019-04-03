@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/url"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
+	"github.com/wlcn/yq-colly/common"
+	"github.com/wlcn/yq-colly/producer"
 	// "github.com/gocolly/colly/debug"
 )
 
@@ -30,22 +31,6 @@ var regSong, _ = regexp.Compile(`^/song/[\d]+$`)
 
 func init() {
 	rand.Seed(int64(time.Now().Nanosecond()))
-}
-
-// SongDetail struct
-type SongDetail struct {
-	ArtistID    string `json:"artistId"`
-	Artist      string `json:"artist"`
-	AlbumID     string `json:"albumId"`
-	Album       string `json:"album"`
-	SongID      string `json:"songId"`
-	SongName    string `json:"songName"`
-	SongLink    string `json:"songLink"`
-	LrcLink     string `json:"lrcLink"`
-	Publish     string `json:"publish"`
-	Company     string `json:"company"`
-	MVID        string `json:"mvId"`
-	SongImgLink string `json:"songImgLink"`
 }
 
 // PageData struct
@@ -106,16 +91,15 @@ func main() {
 	artistPageCollector := c.Clone()
 	songCollector := c.Clone()
 	songDetailCollector := c.Clone()
-	lrcCollector := c.Clone()
-	audioCollector := c.Clone()
 
-	items := make([]SongDetail, 0, 16)
+	p := producer.NewSyncProducer()
+	defer producer.CloseSync(p)
 
 	// Limit the number of threads started by colly to two
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*music.taihe.com*",
 		Parallelism: 2,
-		RandomDelay: 20 * time.Second,
+		RandomDelay: 5 * time.Second,
 	})
 	// On every a element which has href attribute call callback
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
@@ -196,72 +180,39 @@ func main() {
 
 	// On every ul element which has top_subnav__link class call callback
 	songCollector.OnHTML("div.songn-info-box", func(e *colly.HTMLElement) {
-		songInfo := e.DOM.Find("div.song-info-box")
-		artistID, _ := songInfo.Find("span.artist a").Attr("href")
-		albumID, _ := songInfo.Find("p.album a").Attr("href")
-		songDetail := SongDetail{
-			ArtistID:    e.Request.AbsoluteURL(artistID),
-			Artist:      songInfo.Find("span.artist a").Text(),
-			AlbumID:     e.Request.AbsoluteURL(albumID),
-			Album:       songInfo.Find("p.album a").Text(),
-			SongID:      e.Attr("data-songid"),
-			SongName:    songInfo.Find("span.name").Text(),
-			SongLink:    e.Request.URL.String(),
-			LrcLink:     e.ChildAttr("div[id=lyricCont]", "data-lrclink"),
-			Publish:     songInfo.Find("p.publish").Text(),
-			Company:     songInfo.Find("p.company").Text(),
-			MVID:        e.ChildAttr("div.song-img", "data-mvid"),
-			SongImgLink: e.ChildAttr("img.music-song-ing", "src"),
-		}
-		items = append(items, songDetail)
-		// log.Printf("Song Detail found: %+v\n", songDetail)
-		e.Request.Ctx.Put("songInfo", fmt.Sprintf("%v_%v_%v", songDetail.SongID, songDetail.SongName, songDetail.Artist))
+		SongID := e.Attr("data-songid")
 		// 请求歌曲信息
-		songDetailLink := fmt.Sprintf(urlTing, time.Now().UnixNano()/1e6, songDetail.SongID, time.Now().UnixNano()/1e6)
+		songDetailLink := fmt.Sprintf(urlTing, time.Now().UnixNano()/1e6, SongID, time.Now().UnixNano()/1e6)
 		log.Printf("Song deatil link is %v", songDetailLink)
+		e.Request.Ctx.Put("songDetailLink", songDetailLink)
 		songDetailCollector.Request("GET", songDetailLink, nil, e.Request.Ctx, nil)
-	})
-
-	// 保存歌词
-	lrcCollector.OnResponse(func(r *colly.Response) {
-		songInfo := r.Ctx.Get("songInfo")
-		err := r.Save(StoreDir + songInfo + ".lrc")
-		if err != nil {
-			log.Print(err)
-			log.Printf("保存歌词失败 %v", r.Request.URL.String())
-		}
-	})
-
-	// 保存音频文件
-	audioCollector.OnResponse(func(r *colly.Response) {
-		// log.Println("下载音频文件中......")
-		songInfo := r.Ctx.Get("songInfo")
-		fileExtension := r.Ctx.Get("FileExtension")
-		err := r.Save(StoreDir + songInfo + "." + fileExtension)
-		if err != nil {
-			log.Print(err)
-			log.Printf("保存音频失败 %v", r.Request.URL.String())
-		}
 	})
 
 	// 保存歌曲信息
 	songDetailCollector.OnResponse(func(r *colly.Response) {
-		songInfo := r.Ctx.Get("songInfo")
+		songDetailLink := r.Ctx.Get("songDetailLink")
 		bodyStr := string(r.Body)
 		// 截取字符串
 		jsonStr := bodyStr[strings.Index(bodyStr, "(")+1 : strings.LastIndex(bodyStr, ")")]
-		// 保存json数据
-		ioutil.WriteFile(StoreDir+songInfo+".json", []byte(jsonStr), os.ModePerm)
-		// log.Println(jsonStr)
+		log.Println(jsonStr)
 		// 解析json
 		var songData SongData
 		json.Unmarshal([]byte(jsonStr), &songData)
-		// log.Printf("songData is %+v", songData)
-		// 下载lrc歌词
-		lrcCollector.Request("GET", songData.SongInfo.Lrclink, nil, r.Ctx, nil)
-		// 下载mp3
-		r.Ctx.Put("FileExtension", songData.Bitrate.FileExtension)
-		audioCollector.Request("GET", songData.Bitrate.FileLink, nil, r.Ctx, nil)
+		// send to kafka
+		data := common.Data{
+			ID:          songData.SongInfo.SongID,
+			URL:         songDetailLink,
+			Title:       songData.SongInfo.Title,
+			Content:     songData.SongInfo.AlbumTitle,
+			PublishTime: time.Now(),
+			Author:      songData.SongInfo.Author,
+			Source:      "taihe",
+			Tag:         "music",
+			Lrclink:     songData.SongInfo.Lrclink,
+			PicLink:     songData.SongInfo.PicPremium,
+			FileLink:    songData.Bitrate.FileLink,
+		}
+		producer.SendSync(p, common.Topic, data)
 	})
 
 	// Before making a request print "Visiting ..."
@@ -281,9 +232,4 @@ func main() {
 	// Start scraping on http://music.taihe.com/artist
 	c.Visit("http://music.taihe.com/artist")
 
-	outfileDone, _ := os.Create("taihe_done.json")
-	encDone := json.NewEncoder(outfileDone)
-	encDone.SetIndent("", "  ")
-	// Dump json to the standard output
-	encDone.Encode(items)
 }

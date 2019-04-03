@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
@@ -13,7 +14,7 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-func init(){
+func init() {
 	// 加载配置文件
 }
 
@@ -87,6 +88,10 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
 		log.Printf("Message claimed: value = %s, timestamp = %v, topic = %s", string(message.Value), message.Timestamp, message.Topic)
+		var data Data
+		json.Unmarshal(message.Value, data)
+		// 入库sql
+		// 入库es
 		session.MarkMessage(message, "")
 	}
 
