@@ -7,7 +7,7 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/wlcn/yq-colly/common"
 	"github.com/wlcn/yq-colly/producer"
-	"github.com/wlcn/yq-starter/service/article"
+	"github.com/wlcn/yq-starter/service/image"
 )
 
 func main() {
@@ -32,9 +32,9 @@ func main() {
 		})
 		if strings.Index(url, "http://www.xiaohuar.com/list-") != -1 {
 			e.ForEach("div.img a", func(_ int, a *colly.HTMLElement) {
-				data := article.Article{
+				data := image.Image{
 					Title:   a.Attr("alt"),
-					PicLink: a.Attr("href"),
+					URL:     a.Attr("href"),
 					Content: a.Text,
 				}
 				producer.SendSync(p, common.Topic, data)
