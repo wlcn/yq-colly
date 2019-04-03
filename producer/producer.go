@@ -27,7 +27,7 @@ func SendSync(syncProducer sarama.SyncProducer, topic string, data interface{}) 
 	}
 	// We are not setting a message key, which means that all messages will
 	// be distributed randomly over the different partitions.
-	partition, offset, err := syncProducer.SendMessage(&sarama.ProducerMessage{
+	_, _, err = syncProducer.SendMessage(&sarama.ProducerMessage{
 		Topic: topic,
 		Value: sarama.ByteEncoder(byteData),
 	})
@@ -35,9 +35,6 @@ func SendSync(syncProducer sarama.SyncProducer, topic string, data interface{}) 
 		fmt.Printf("Failed to store your data:, %s", err)
 		return err
 	}
-	// The tuple (topic, partition, offset) can be used as a unique identifier
-	// for a message in a Kafka cluster.
-	fmt.Printf("Your data is stored with unique identifier important/%d/%d", partition, offset)
 	return nil
 }
 
