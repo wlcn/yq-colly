@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,9 +18,7 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-func init() {
-	// 加载配置文件
-}
+var token string
 
 // NewConsumerGroup 创建消费者
 func main() {
@@ -88,12 +90,58 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
 		log.Printf("Message claimed: value = %s, timestamp = %v, topic = %s", string(message.Value), message.Timestamp, message.Topic)
-		var data Data
-		json.Unmarshal(message.Value, data)
 		// 入库sql
+		send(message.Value)
 		// 入库es
 		session.MarkMessage(message, "")
 	}
 
 	return nil
+}
+
+func send(data []byte) {
+	url := "http://localhost:8080/api/v1/article"
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req.Header.Set("token", token)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("err is %+v \n", err)
+		return
+	}
+	defer resp.Body.Close()
+	fmt.Printf("response Status: %v \n", resp.Status)
+}
+
+func init() {
+	// 获取token
+	url := "http://localhost:8080/auth/login"
+	data := map[string]string{
+		"Name":     "yq",
+		"Password": "1",
+	}
+	jsonStr, err := json.Marshal(data)
+	if err != nil {
+		fmt.Printf("json error %+v", err)
+		return
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonStr))
+	if err != nil {
+		fmt.Printf("err is %+v \n", err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("read err %+v", err)
+		return
+	}
+	response := map[string]interface{}{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Printf("json err %+v", err)
+		return
+	}
+	token = response["token"].(string)
 }

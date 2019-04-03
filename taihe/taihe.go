@@ -16,6 +16,7 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/wlcn/yq-colly/common"
 	"github.com/wlcn/yq-colly/producer"
+	"github.com/wlcn/yq-starter/service/article"
 	// "github.com/gocolly/colly/debug"
 )
 
@@ -194,13 +195,13 @@ func main() {
 		bodyStr := string(r.Body)
 		// 截取字符串
 		jsonStr := bodyStr[strings.Index(bodyStr, "(")+1 : strings.LastIndex(bodyStr, ")")]
-		log.Println(jsonStr)
+		// log.Println(jsonStr)
 		// 解析json
 		var songData SongData
 		json.Unmarshal([]byte(jsonStr), &songData)
 		// send to kafka
-		data := common.Data{
-			ID:          songData.SongInfo.SongID,
+		data := article.Article{
+			SourceID:    songData.SongInfo.SongID,
 			URL:         songDetailLink,
 			Title:       songData.SongInfo.Title,
 			Content:     songData.SongInfo.AlbumTitle,
