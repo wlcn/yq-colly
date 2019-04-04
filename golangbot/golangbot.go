@@ -14,18 +14,6 @@ import (
 
 var token string
 
-// Article should only be concerned with database schema, more strict checking should be put in validator.
-type Article struct {
-	Title       string
-	Content     string
-	Author      string
-	Excerpt     string
-	ReadCount   int
-	LikeCount   int
-	PublishTime time.Time
-	UserID      string
-}
-
 func main() {
 	// Instantiate default collector
 	c := colly.NewCollector()
@@ -63,12 +51,12 @@ func main() {
 			fmt.Printf("get detail error %+v", err)
 			return
 		}
-		article := Article{
-			Title:       e.ChildText("h1.post-title"),
-			Excerpt:     e.Request.Ctx.Get("excerpt"),
-			PublishTime: publishTime,
-			Author:      e.ChildText("section.author a"),
-			Content:     content,
+		article := map[string]interface{}{
+			"Title":       e.ChildText("h1.post-title"),
+			"Excerpt":     e.Request.Ctx.Get("excerpt"),
+			"PublishTime": publishTime,
+			"Author":      e.ChildText("section.author a"),
+			"Content":     content,
 		}
 		ch <- article
 	})

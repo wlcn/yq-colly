@@ -43,7 +43,7 @@ func main() {
 	}
 	go func() {
 		for {
-			err := client.Consume(ctx, strings.Split(common.Topic, ","), &consumer)
+			err := client.Consume(ctx, []string{common.TopicArticle, common.TopicMusic, common.TopicImage}, &consumer)
 			if err != nil {
 				log.Fatalf("consumer err %+v", err)
 			}
@@ -91,7 +91,7 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	for message := range claim.Messages() {
 		log.Printf("Message claimed: value = %s, timestamp = %v, topic = %s", string(message.Value), message.Timestamp, message.Topic)
 		// 入库sql
-		send(message.Value)
+		send(message.Topic, message.Value)
 		// 入库es
 		session.MarkMessage(message, "")
 	}
@@ -99,8 +99,16 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	return nil
 }
 
-func send(data []byte) {
+func send(topic string, data []byte) {
 	url := "http://localhost:8080/api/v1/article"
+	switch topic {
+	case common.TopicArticle:
+		url = "http://localhost:8080/api/v1/article"
+	case common.TopicImage:
+		url = "http://localhost:8080/api/v1/image"
+	case common.TopicMusic:
+		url = "http://localhost:8080/api/v1/music"
+	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	req.Header.Set("token", token)
 	req.Header.Set("Content-Type", "application/json")
@@ -111,7 +119,7 @@ func send(data []byte) {
 		return
 	}
 	defer resp.Body.Close()
-	fmt.Printf("response Status: %v \n", resp.Status)
+	// fmt.Printf("response Status: %v \n", resp.Status)
 }
 
 func init() {

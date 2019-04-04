@@ -76,7 +76,7 @@ func SendAsync(asyncProducer sarama.AsyncProducer, topic string, data interface{
 		return err
 	}
 	asyncProducer.Input() <- &sarama.ProducerMessage{
-		Topic: common.Topic,
+		Topic: topic,
 		Value: sarama.ByteEncoder(byteData),
 	}
 	return nil

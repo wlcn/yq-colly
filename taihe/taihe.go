@@ -16,7 +16,6 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/wlcn/yq-colly/common"
 	"github.com/wlcn/yq-colly/producer"
-	"github.com/wlcn/yq-starter/service/article"
 	// "github.com/gocolly/colly/debug"
 )
 
@@ -200,20 +199,20 @@ func main() {
 		var songData SongData
 		json.Unmarshal([]byte(jsonStr), &songData)
 		// send to kafka
-		data := article.Article{
-			SourceID:    songData.SongInfo.SongID,
-			URL:         songDetailLink,
-			Title:       songData.SongInfo.Title,
-			Content:     songData.SongInfo.AlbumTitle,
-			PublishTime: time.Now(),
-			Author:      songData.SongInfo.Author,
-			Source:      "taihe",
-			Tag:         "music",
-			Lrclink:     songData.SongInfo.Lrclink,
-			PicLink:     songData.SongInfo.PicPremium,
-			FileLink:    songData.Bitrate.FileLink,
+		data := map[string]interface{}{
+			"SourceID":    songData.SongInfo.SongID,
+			"URL":         songDetailLink,
+			"Title":       songData.SongInfo.Title,
+			"Content":     songData.SongInfo.AlbumTitle,
+			"PublishTime": time.Now(),
+			"Author":      songData.SongInfo.Author,
+			"Source":      "taihe",
+			"Tag":         "music",
+			"Lrclink":     songData.SongInfo.Lrclink,
+			"PicLink":     songData.SongInfo.PicPremium,
+			"FileLink":    songData.Bitrate.FileLink,
 		}
-		producer.SendSync(p, common.Topic, data)
+		producer.SendSync(p, common.TopicMusic, data)
 	})
 
 	// Before making a request print "Visiting ..."

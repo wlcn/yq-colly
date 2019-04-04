@@ -26,8 +26,11 @@ func main() {
 				"Title":   d.ChildText("span.price"),
 				"URL":     e.Request.AbsoluteURL(d.ChildAttr("img", "src")),
 				"Content": d.ChildAttr("img", "alt"),
+				"Author":  d.ChildText("span.price"),
+				"Source":  "xiaohuar",
+				"Tag":     "image",
 			}
-			producer.SendSync(p, common.Topic, data)
+			producer.SendSync(p, common.TopicImage, data)
 		})
 		e.ForEach(`div.page a`, func(_ int, a *colly.HTMLElement) {
 			if a.Text == "下一页" {

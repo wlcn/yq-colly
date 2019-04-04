@@ -7,7 +7,6 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/wlcn/yq-colly/common"
 	"github.com/wlcn/yq-colly/producer"
-	"github.com/wlcn/yq-starter/service/article"
 )
 
 func main() {
@@ -47,13 +46,13 @@ func main() {
 			fmt.Printf("get detail error %+v", err)
 			return
 		}
-		data := article.Article{
-			Title:       e.ChildText("h1.post-title"),
-			PublishTime: publishTime,
-			Author:      e.ChildText("section.author a"),
-			Content:     content,
+		data := map[string]interface{}{
+			"Title":       e.ChildText("h1.post-title"),
+			"PublishTime": publishTime,
+			"Author":      e.ChildText("section.author a"),
+			"Content":     content,
 		}
-		producer.SendSync(p, common.Topic, data)
+		producer.SendSync(p, common.TopicArticle, data)
 	})
 
 	c.Visit("https://golangbot.com/")
