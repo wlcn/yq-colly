@@ -1,23 +1,22 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
+	"github.com/wlcn/yq-colly/common"
+	"github.com/wlcn/yq-colly/producer"
 	// "github.com/gocolly/colly/debug"
 )
 
@@ -95,9 +94,9 @@ func main() {
 	songDetailCollector := c.Clone()
 	lrcCollector := c.Clone()
 	audioCollector := c.Clone()
-	ch := make(chan map[string]interface{}, 10)
-	var wg sync.WaitGroup
-	go save(ch, &wg)
+
+	p := producer.NewSyncProducer()
+	defer producer.CloseSync(p)
 
 	// Limit the number of threads started by colly to two
 	c.Limit(&colly.LimitRule{
@@ -231,7 +230,8 @@ func main() {
 			"FileLink":    songData.Bitrate.FileLink,
 			"FilePath":    audioPath,
 		}
-		ch <- data
+
+		producer.SendSync(p, common.TopicMusic, data)
 	})
 
 	// 保存歌词
@@ -272,35 +272,5 @@ func main() {
 	})
 	// Start scraping on http://music.taihe.com/artist
 	c.Visit("http://music.taihe.com/artist")
-	// 主线程等待goroutine结束
-	wg.Wait()
-}
 
-func save(ch chan map[string]interface{}, wg *sync.WaitGroup) {
-	for d := range ch {
-		wg.Add(1)
-		go send(d, wg)
-	}
-}
-
-func send(data map[string]interface{}, wg *sync.WaitGroup) {
-	url := "http://localhost:8080/api/v1/music"
-	// 保存数据接口
-	jsonStr, err := json.Marshal(data)
-	if err != nil {
-		fmt.Printf("json marshal err %v", err)
-		return
-	}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-	req.Header.Set("token", "I am a valid token in YQ")
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("err is %+v \n", err)
-		return
-	}
-	defer resp.Body.Close()
-	fmt.Printf("response Status: %v \n", resp.Status)
-	wg.Done()
 }
