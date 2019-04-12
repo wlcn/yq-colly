@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gocolly/colly"
 )
@@ -13,6 +14,12 @@ import (
 func main() {
 	// Instantiate default collector
 	c := colly.NewCollector()
+
+	// Limit the number of threads started by colly to two
+	c.Limit(&colly.LimitRule{
+		Parallelism: 2,
+		RandomDelay: 5 * time.Second,
+	})
 
 	ch := make(chan map[string]interface{}, 10)
 	var wg sync.WaitGroup

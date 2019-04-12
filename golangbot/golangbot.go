@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -12,13 +11,11 @@ import (
 	"github.com/gocolly/colly"
 )
 
-var token string
-
 func main() {
 	// Instantiate default collector
 	c := colly.NewCollector()
 	detailCollector := c.Clone()
-	ch := make(chan Article, 10)
+	ch := make(chan map[string]interface{}, 10)
 	var wg sync.WaitGroup
 	go save(ch, &wg)
 
@@ -67,23 +64,23 @@ func main() {
 	wg.Wait()
 }
 
-func save(ch chan Article, wg *sync.WaitGroup) {
-	for article := range ch {
+func save(ch chan map[string]interface{}, wg *sync.WaitGroup) {
+	for d := range ch {
 		wg.Add(1)
-		go send(article, wg)
+		go send(d, wg)
 	}
 }
 
-func send(article Article, wg *sync.WaitGroup) {
+func send(d map[string]interface{}, wg *sync.WaitGroup) {
 	url := "http://localhost:8080/api/v1/article"
 	// 保存数据接口
-	jsonStr, err := json.Marshal(article)
+	jsonStr, err := json.Marshal(d)
 	if err != nil {
 		fmt.Printf("json marshal err %v", err)
 		return
 	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-	req.Header.Set("token", token)
+	req.Header.Set("token", "I am a valid token in YQ")
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -92,38 +89,6 @@ func send(article Article, wg *sync.WaitGroup) {
 		return
 	}
 	defer resp.Body.Close()
-	fmt.Printf("title is %v response Status: %v \n", article.Title, resp.Status)
+	fmt.Printf("response Status: %v \n", resp.Status)
 	wg.Done()
-}
-
-func init() {
-	// 获取token
-	url := "http://localhost:8080/auth/login"
-	data := map[string]string{
-		"Name":     "yq",
-		"Password": "1",
-	}
-	jsonStr, err := json.Marshal(data)
-	if err != nil {
-		fmt.Printf("json error %+v", err)
-		return
-	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonStr))
-	if err != nil {
-		fmt.Printf("err is %+v \n", err)
-		return
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("read err %+v", err)
-		return
-	}
-	response := map[string]interface{}{}
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		fmt.Printf("json err %+v", err)
-		return
-	}
-	token = response["token"].(string)
 }
