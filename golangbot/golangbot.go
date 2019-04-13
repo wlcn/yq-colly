@@ -72,7 +72,7 @@ func save(ch chan map[string]interface{}, wg *sync.WaitGroup) {
 }
 
 func send(d map[string]interface{}, wg *sync.WaitGroup) {
-	url := "http://localhost:8080/api/v1/article"
+	url := "http://localhost:8085/api/v1/article"
 	// 保存数据接口
 	jsonStr, err := json.Marshal(d)
 	if err != nil {
